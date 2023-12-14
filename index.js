@@ -43,11 +43,43 @@ run().catch(console.dir);
 const productCollection = client.db("BuyEase").collection("AllProducts");
 const categoryCollection = client.db("BuyEase").collection("categories");
 
+// app.get("/api/v1/products", async (req, res) => {
+//   const cursor = productCollection.find();
+//   const result = await cursor.toArray();
+//   res.send({
+//     result, 
+//     total:result?.length
+//   });
+// });
+
+
+
 app.get("/api/v1/products", async (req, res) => {
-  const cursor = productCollection.find();
-  const result = await cursor.toArray();
-  res.send(result);
+  try {
+      const query = {};
+      let imgLimit = parseInt(req.query.limit);
+      let imgOffset = parseInt(req.query.offset) || 0;
+
+      const total = (await productCollection.find(query).toArray()).length;
+
+      if (imgOffset >= total) {
+          return res.send({ result: [], total: 0 });
+      }
+const result = await productCollection.find().skip(imgOffset).limit(imgLimit).toArray();
+      res.send({
+          result,
+          total: total,
+      });
+  } catch (error) {
+      res.status(500).send({ error: error.message });
+  }
 });
+
+
+
+
+
+
 
 //work from here
 // getting data for "people also watching" which is located in product details page
