@@ -3,14 +3,16 @@ const cors = require("cors");
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
-const port = process.env.PORT || 5000;
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+
+
+const port = process.env.PORT || 5000;
+const jwt = require('jsonwebtoken');
 //middleware
 app.use(cors());
 app.use(express.json());
-
-console.log();
-console.log();
+ 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.sarjove.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -42,15 +44,55 @@ run().catch(console.dir);
 
 const productCollection = client.db("BuyEase").collection("AllProducts");
 const categoryCollection = client.db("BuyEase").collection("categories");
+const userCollection = client.db('BuyEase').collection('users')
 
-// app.get("/api/v1/products", async (req, res) => {
-//   const cursor = productCollection.find();
-//   const result = await cursor.toArray();
-//   res.send({
-//     result, 
-//     total:result?.length
-//   });
-// });
+
+//jwt related api
+app.post('/jwt' , async(req,res) => {
+  const user = req.body
+  // console.log(user);
+  const token = jwt.sign(user , process.env.ACCESS_TOKEN_SECRET , {
+    expiresIn: '1h'
+  }  )
+  res.send({token})
+})
+
+//middlewares
+const verifyToken = (req,res,next) => {
+  // console.log('inside verify token line 60' , req.headers);
+  if(!req.headers.authorization){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+  const token = req.headers.authorization.split(' ')[1];
+  jwt.verify(token , process.env.ACCESS_TOKEN_SECRET, (err,decoded) => {
+    if(err) {
+      return res.status(401).send({message: 'unauthorized access'})
+    }
+    req.decoded = decoded
+    next()
+  })
+
+}
+
+
+
+
+
+
+  //updating user in db
+  app.post("/users", async (req, res) => {
+    const user = req.body;
+    //insert email if user doesn't exists;
+    const query = { email: user.email };
+    const existingUser = await userCollection.findOne(query);
+    if (existingUser) {
+      return res.send({ message: "user already exists", insertedId: null });
+    }
+    const result = await userCollection.insertOne(user);
+    res.send(result);
+  });
+  
+
 
 
 
@@ -93,6 +135,7 @@ const result = await productCollection.find().skip(imgOffset).limit(imgLimit).to
 
 app.get("/productDetails/:id", async (req, res) => {
   const id = req.params.id;
+  // console.log(id);
   const query = { _id: new ObjectId(id) };
   const result = await productCollection.findOne(query);
   res.send(result);
@@ -112,12 +155,36 @@ app.get("/allCategories", async (req, res) => {
 //getting all data on a specific category
 app.get("/api/v1/categoryProducts/:category", async (req, res) => {
   const category = req.params.category;
-  console.log(category);
+  // console.log(category);
   const productsWithCategory = await productCollection
     .find({ category: category })
     .toArray();
   res.send(productsWithCategory);
 });
+
+//payment intent
+app.post('/create-payment-intent' , async(req,res) => {
+  const {price} = req.body;
+  const amount = parseInt(price * 100)
+  console.log('amount inside intent ', amount);
+//return
+
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: amount,
+  currency: 'usd', 
+  payment_method_types:  ["card"],
+})
+console.log( {clientSecret: paymentIntent.client_secret});
+res.send({ 
+  clientSecret: paymentIntent.client_secret,
+})
+
+
+
+})
+
+
+
 
 //___________________________________________
 
