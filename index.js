@@ -45,7 +45,7 @@ run().catch(console.dir);
 const productCollection = client.db("BuyEase").collection("AllProducts");
 const categoryCollection = client.db("BuyEase").collection("categories");
 const userCollection = client.db('BuyEase').collection('users')
-
+const paymentCollection = client.db("BuyEase").collection("payments");
 
 //jwt related api
 app.post('/jwt' , async(req,res) => {
@@ -178,9 +178,81 @@ console.log( {clientSecret: paymentIntent.client_secret});
 res.send({ 
   clientSecret: paymentIntent.client_secret,
 })
+})
+
+//saving the payment in db
+app.post("/payments", async (req, res) => {
+  const payment = req.body;
+  const paymentResult = await paymentCollection.insertOne(payment);
+
+  console.log("payment info ", payment);
+  res.send({ paymentResult }); 
+});
+
+//showing all the orders by user email
+app.get('/allOrders/:email' , async(req,res) => {
+  const email = req.params.email;
+  const query = {email: email}
+  const orders = await paymentCollection.find(query).toArray()
+  // console.log(orders);
+  res.send(orders)
+})
+
+//deleting order
+app.delete('/delete/:id' , async(req,res ) => {
+  const id = req.params.id
+  const query = await paymentCollection.deleteOne({_id: new ObjectId(id)})
+  // console.log(query);
+  res.send(query)
+})
 
 
 
+//checking the buyer
+app.get("/users/buyer/:email", verifyToken, async (req, res) => {
+  const email = req.params.email;
+  const query = { email: email };
+  const user = await userCollection.findOne(query);
+  let buyer = false;
+  if (user) {
+    buyer = user.role === "buyer";
+  }
+  res.send({ buyer });
+});
+
+//checking the admin
+app.get("/users/admin/:email", verifyToken, async (req, res) => {
+  const email = req.params.email;
+  const query = { email: email };
+  const user = await userCollection.findOne(query);
+  let admin = false;
+  if (user) {
+    admin = user.role === "admin";
+  }
+  res.send({ admin });
+});
+
+//checking the seller 
+app.get("/users/seller/:email", verifyToken, async (req, res) => {
+  const email = req.params.email;
+  const query = { email: email };
+  const user = await userCollection.findOne(query);
+  let seller = false;
+  if (user) {
+    seller = user.role === "seller";
+  }
+  res.send({ seller });
+});
+//checking the delivery Man
+app.get('/users/deliveryMan/:email' , verifyToken , async(req,res) =>{
+  const email = req.params.email; 
+  const query = {email: email}
+  const user = await userCollection.findOne(query)
+  let deliveryMan = false 
+  if(user) {
+    deliveryMan = user.role === 'deliveryMan' 
+  }
+  res.send({deliveryMan})
 })
 
 
